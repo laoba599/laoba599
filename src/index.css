@@ -9,8 +9,21 @@
 
 body {
   font-family: var(--font-sans);
-  background-color: #b1d0e0;
-  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath stroke='%23000' stroke-width='1' fill='%23FFF' d='M0 0l4.5 16 2.5-4 5.5 3.5 1-2-5.5-3.5 4.5-1.5L0 0z'/%3E%3C/svg%3E"), auto;
+  background-color: #222;
+}
+
+* {
+  cursor: none !important;
+}
+
+@layer utilities {
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }
 
 .dv-grain {
@@ -51,6 +64,14 @@ body {
   background-position: 0 0, 10px 10px;
 }
 
+.bg-checkered-dark {
+  background-image: 
+    linear-gradient(45deg, #005050 25%, transparent 25%, transparent 75%, #005050 75%, #005050), 
+    linear-gradient(45deg, #005050 25%, transparent 25%, transparent 75%, #005050 75%, #005050);
+  background-size: 20px 20px;
+  background-position: 0 0, 10px 10px;
+}
+
 .bg-lined {
   background-size: 100% 1.2em;
   background-image: linear-gradient(
@@ -87,7 +108,6 @@ body {
   padding: 4px 16px;
   color: black;
   font-family: var(--font-pixel);
-  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath stroke='%23000' stroke-width='1' fill='%23FFF' d='M6 0v2H4v2H2v2H0v5h2v1h2v1h2v1h2v-1h2v1h2v1h2v-1h2v-1h-2v-1h-2v-1h2V9h2V7h-2V5h-2V3h-2V1H8V0H6z'/%3E%3C/svg%3E") 8 2, pointer;
   box-shadow: inset 1px 1px #dfdfdf, inset -1px -1px #808080;
 }
 .win98-button:active {
@@ -131,7 +151,6 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.1em;
   transition: all 0.1s;
-  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath stroke='%23000' stroke-width='1' fill='%23FFF' d='M6 0v2H4v2H2v2H0v5h2v1h2v1h2v1h2v-1h2v1h2v1h2v-1h2v-1h-2v-1h-2v-1h2V9h2V7h-2V5h-2V3h-2V1H8V0H6z'/%3E%3C/svg%3E") 8 2, pointer;
 }
 .brutalist-button:active {
   transform: translate(2px, 2px);
@@ -147,7 +166,7 @@ body {
 
 .polaroid {
   background: #fbfbfb;
-  padding: 15px 15px 50px 15px;
+  padding: 15px 15px 12% 15px;
   border: 1px solid #ddd;
   box-shadow: inset 0 0 20px rgba(0,0,0,0.05), 10px 10px 0px rgba(0,0,0,0.1);
 }
@@ -161,6 +180,26 @@ body {
 }
 .shake-hover:hover {
   animation: shake 0.3s infinite;
+}
+
+@keyframes float-up {
+  0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+  100% { transform: translate(-50%, calc(-50% - 120px)) scale(2) rotate(20deg); opacity: 0; }
+}
+
+.animate-float-up {
+  animation: float-up 1.2s ease-out forwards;
+}
+
+@keyframes float-note {
+  0% { transform: translateY(0) rotate(-15deg); opacity: 0; }
+  20% { opacity: 0.6; }
+  80% { opacity: 0.6; }
+  100% { transform: translateY(-100vh) rotate(15deg); opacity: 0; }
+}
+
+.animate-float-note {
+  animation: float-note linear infinite forwards;
 }
 
 

@@ -1,8 +1,214 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from "motion/react";
 import confetti from 'canvas-confetti';
 import { cn } from './lib/utils';
+import { fileSystem, chatMessages, popupsData, FileSystemItem, memoriesData } from './data';
 import './index.css';
+
+const Starfield = () => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    let width = canvas.offsetWidth;
+    let height = canvas.offsetHeight;
+    canvas.width = width;
+    canvas.height = height;
+
+    const stars: {x:number, y:number, size:number, speed:number, color:string}[] = [];
+    const colors = ['#ff69b4', '#00ffff', '#ffffff'];
+    for(let i=0; i<150; i++) {
+        stars.push({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            size: Math.random() * 2 + 0.5,
+            speed: Math.random() * 0.5 + 0.1,
+            color: colors[Math.floor(Math.random() * colors.length)]
+        });
+    }
+
+    let animationFrameId: number;
+    const render = () => {
+        ctx.clearRect(0, 0, width, height);
+        stars.forEach(star => {
+            star.x -= star.speed;
+            star.y += star.speed;
+            if (star.x < 0 || star.y > height) {
+                if (Math.random() > 0.5) {
+                    star.x = width;
+                    star.y = Math.random() * height;
+                } else {
+                    star.x = Math.random() * width;
+                    star.y = 0;
+                }
+            }
+            ctx.fillStyle = star.color;
+            ctx.globalAlpha = Math.random() * 0.5 + 0.5;
+            ctx.fillRect(star.x, star.y, star.size, star.size);
+            ctx.globalAlpha = 1.0;
+        });
+        animationFrameId = requestAnimationFrame(render);
+    };
+    render();
+
+    const handleResize = () => {
+        width = canvas.offsetWidth;
+        height = canvas.offsetHeight;
+        canvas.width = width;
+        canvas.height = height;
+    };
+    window.addEventListener('resize', handleResize);
+    return () => {
+        cancelAnimationFrame(animationFrameId);
+        window.removeEventListener('resize', handleResize);
+    }
+  }, []);
+  return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-0 opacity-50 block" />;
+}
+
+const GlobalInteractions = () => {
+  const [pos, setPos] = useState({x: -100, y: -100});
+  const [isJumping, setIsJumping] = useState(false);
+  const [hearts, setHearts] = useState<{id:number, x:number, y:number}[]>([]);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setPos({x: e.clientX, y: e.clientY});
+    };
+    const handleMouseDown = (e: MouseEvent) => {
+      setIsJumping(true);
+      setTimeout(() => setIsJumping(false), 200);
+
+      const newHearts = Array.from({length: 3 + Math.floor(Math.random()*3)}).map((_, i) => ({
+         id: Date.now() + i + Math.random(),
+         x: e.clientX,
+         y: e.clientY
+      }));
+      setHearts(prev => [...prev, ...newHearts]);
+      setTimeout(() => {
+         setHearts(prev => prev.filter(h => !newHearts.map(nh => nh.id).includes(h.id)));
+      }, 1500);
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mousedown', handleMouseDown);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mousedown', handleMouseDown);
+    }
+  }, []);
+
+  return (
+    <>
+      <div 
+        className={cn("fixed pointer-events-none z-[10000] text-3xl filter drop-shadow select-none", isJumping ? "animate-[shake_0.1s_ease-in-out_infinite]" : "transition-transform")}
+        style={{ left: pos.x, top: pos.y, transform: `translate(-20%, -20%) ${isJumping ? 'scale(1.2)' : 'scale(1)'}` }}
+      >
+        🐰
+      </div>
+      {hearts.map(h => (
+        <div 
+          key={h.id}
+          className="fixed pointer-events-none z-[9998] text-sm text-[#ff69b4] animate-float-up drop-shadow-md select-none"
+          style={{ 
+              left: h.x + (Math.random() * 40 - 20), 
+              top: h.y + (Math.random() * 20 - 10) 
+          }}
+        >
+          ❤
+        </div>
+      ))}
+    </>
+  );
+}
+
+const FloatingNotes = () => {
+    const [notes, setNotes] = useState<{id:number, char:string, left:number, size:number, dur:number, delay:number}[]>([]);
+    useEffect(() => {
+        setNotes(Array.from({length: 15}).map((_, i) => ({
+            id: i,
+            char: ['♪', '♫', '♩'][Math.floor(Math.random()*3)],
+            left: Math.random() * 100,
+            size: Math.random() * 20 + 20,
+            dur: Math.random() * 5 + 5,
+            delay: Math.random() * 5
+        })));
+    }, []);
+    return (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-10">
+            {notes.map(note => (
+                <div 
+                  key={note.id} 
+                  className="absolute text-[#ff69b4] opacity-30 font-serif animate-float-note drop-shadow"
+                  style={{
+                      left: `${note.left}%`,
+                      top: `100%`,
+                      fontSize: `${note.size}px`,
+                      animationDuration: `${note.dur}s`,
+                      animationDelay: `${note.delay}s`
+                  }}
+                >
+                    {note.char}
+                </div>
+            ))}
+        </div>
+    )
+}
+
+const TypewriterText = ({ text, delay = 0, onComplete }: {text: string, delay?: number, onComplete?: () => void}) => {
+    const [displayed, setDisplayed] = useState('');
+    const [isDone, setIsDone] = useState(false);
+    useEffect(() => {
+        let i = 0;
+        const t = setTimeout(() => {
+            const interval = setInterval(() => {
+                setDisplayed(text.substring(0, i+1));
+                i++;
+                if (i >= text.length) {
+                    clearInterval(interval);
+                    setIsDone(true);
+                    if(onComplete) onComplete();
+                }
+            }, 80);
+            return () => clearInterval(interval);
+        }, delay);
+        return () => clearTimeout(t);
+    }, [text, delay]);
+    return <span>{displayed}{!isDone && <span className="animate-pulse">_</span>}</span>;
+}
+
+const Envelope = ({ onOpen }: { onOpen: () => void }) => {
+    const [isFlipping, setIsFlipping] = useState(false);
+    const handleClick = () => {
+        setIsFlipping(true);
+        setTimeout(onOpen, 1000);
+    }
+    return (
+        <div className="w-80 h-48 relative cursor-none hover:scale-105 transition-transform drop-shadow-[8px_8px_0_rgba(0,0,0,0.8)]" onClick={handleClick} style={{ perspective: '1000px' }}>
+           <div className="absolute inset-0 bg-[#bf9b6b] border-4 border-black" />
+           <div 
+               className={cn("absolute top-0 left-0 w-full h-[55%] bg-[#d7ae7a] border-4 border-black origin-top transition-all duration-700 ease-in-out")} 
+               style={{ 
+                   clipPath: 'polygon(0 0, 100% 0, 50% 100%)',
+                   transform: isFlipping ? 'rotateX(180deg)' : 'rotateX(0deg)',
+                   zIndex: isFlipping ? 0 : 40
+               }}>
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 w-8 h-8 bg-red-600 rounded-full border-2 border-black flex items-center justify-center font-pixel text-white text-[10px] shadow-sm">♡</div>
+           </div>
+           <div className={cn("absolute bottom-2 left-4 right-4 h-40 bg-[url('https://www.transparenttextures.com/patterns/cream-paper.png')] bg-white border-2 border-black z-10 transition-all duration-700 ease-out flex flex-col items-center justify-center py-2 px-4 text-center", isFlipping ? "-translate-y-32 opacity-0" : "delay-300 opacity-100 translate-y-0")}>
+               <div className="font-pixel text-2xl font-bold mt-2 tracking-widest">FOR YOU</div>
+               <div className="font-sans text-xs mt-2 border-t border-black/20 pt-2">BUNNIES CLUB</div>
+           </div>
+           <div className="absolute bottom-0 left-0 w-[55%] h-full bg-[#dfb988] border-4 border-black z-30" style={{ clipPath: 'polygon(0 0, 100% 50%, 0 100%)' }} />
+           <div className="absolute bottom-0 right-0 w-[55%] h-full bg-[#ebc696] border-4 border-black z-30" style={{ clipPath: 'polygon(100% 0, 100% 100%, 0 50%)' }} />
+           <div className="absolute bottom-0 left-0 w-full h-[60%] bg-[#f0d0a0] border-4 border-black z-30" style={{ clipPath: 'polygon(0 100%, 50% 0, 100% 100%)' }} />
+           
+           {!isFlipping && <div className="absolute -bottom-10 w-full text-center font-pixel text-[#00ffff] font-bold animate-pulse z-50 text-xl filter drop-shadow-[2px_2px_0_#000]">[ OPEN ]</div>}
+        </div>
+    )
+}
 
 const Login: React.FC<{ onNext: () => void }> = ({ onNext }) => {
   const [pwd, setPwd] = useState('');
@@ -139,32 +345,6 @@ const BiosBoot: React.FC<{ onNext: () => void }> = ({ onNext }) => {
   );
 }
 
-const fileSystem: Record<string, {name: string, type: string, target?: string, content?: string, src?: string, emoji: string}[]> = {
-  'C:\\': [
-    { name: '我的文档 (Documents)', type: 'folder', target: 'C:\\Documents', emoji: '📁' },
-    { name: '回收站 (Trash)', type: 'folder', target: 'C:\\Trash', emoji: '🗑️' },
-    { name: 'readme.txt', type: 'file', content: '提示：去【我的文档】里找找隐藏的加密档案吧。', emoji: '📝' }
-  ],
-  'C:\\Trash': [
-    { name: '.. (返回上级)', type: 'folder', target: 'C:\\', emoji: '📁' },
-    { name: '无用的烦恼.txt', type: 'file', content: '已经全部清空啦！今天也要开心！', emoji: '📝' }
-  ],
-  'C:\\Documents': [
-    { name: '.. (返回上级)', type: 'folder', target: 'C:\\', emoji: '📁' },
-    { name: '工作文件', type: 'folder', target: 'C:\\Documents\\Work', emoji: '📁' },
-    { name: 'TO_BUNNY_绝密存档', type: 'folder', target: 'C:\\Documents\\Secret', emoji: '🗄️' }
-  ],
-  'C:\\Documents\\Work': [
-    { name: '.. (返回上级)', type: 'folder', target: 'C:\\Documents', emoji: '📁' },
-    { name: '待办事项.doc', type: 'file', content: '1. 听 Ditto\n2. 听 OMG\n3. 快乐过生日！', emoji: '📝' }
-  ],
-  'C:\\Documents\\Secret': [
-    { name: '.. (返回上级)', type: 'folder', target: 'C:\\Documents', emoji: '📁' },
-    { name: 'BUNNIES_CHAT.exe', type: 'exe', emoji: '💾' },
-    { name: 'BGM_Track_1.mp3', type: 'audio', src: './bgm.mp3', emoji: '💽' }
-  ]
-};
-
 const AudioPlayerPopup: React.FC<{src: string, name: string, onClose: () => void}> = ({src, name, onClose}) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -225,12 +405,14 @@ const AudioPlayerPopup: React.FC<{src: string, name: string, onClose: () => void
 const DesktopExplorer: React.FC<{ onNext: () => void }> = ({ onNext }) => {
   const [path, setPath] = useState('C:\\');
   const [selected, setSelected] = useState<string | null>(null);
+  const [lastTap, setLastTap] = useState<{name: string, time: number} | null>(null);
   const [popupContent, setPopupContent] = useState<{name: string, content?: string, type: string, src?: string} | null>(null);
 
   const items = fileSystem[path] || [];
 
-  const handleItemClick = (item: any) => {
-    if (selected === item.name) {
+  const handleItemClick = (item: FileSystemItem) => {
+    const now = Date.now();
+    if (selected === item.name && lastTap && lastTap.name === item.name && (now - lastTap.time < 500)) {
       if (item.type === 'folder') {
         setPath(item.target!);
         setSelected(null);
@@ -241,8 +423,10 @@ const DesktopExplorer: React.FC<{ onNext: () => void }> = ({ onNext }) => {
       } else if (item.type === 'exe') {
         onNext();
       }
+      setLastTap(null);
     } else {
       setSelected(item.name);
+      setLastTap({ name: item.name, time: now });
     }
   };
 
@@ -337,15 +521,6 @@ const DesktopExplorer: React.FC<{ onNext: () => void }> = ({ onNext }) => {
     </motion.div>
   );
 }
-
-const chatMessages = [
-  { id: 1, sender: 'MINJI', emoji: '🐻', text: '生日快乐呀！！！🎂 [HBD]', color: '#ff00ff', delay: 1000 },
-  { id: 2, sender: 'HANNI', emoji: '🐰', text: '今天是Bunnies的专属日子！希望你会喜欢我们准备的惊喜！✨', color: '#00ffff', delay: 2500 },
-  { id: 3, sender: 'DANIELLE', emoji: '🐶', text: '天哪！终于等到这一刻了！！🎉🎉 [LOADING_GIFT]', color: '#ffff00', delay: 4000 },
-  { id: 4, sender: 'HAERIN', emoji: '🐱', text: '我在你的系统里偷偷藏了一个加密文件哦... [SECRET_FILE]', color: '#00ff00', delay: 6500 },
-  { id: 5, sender: 'HYEIN', emoji: '🐹', text: '可是千万别去点那些可疑的弹窗呀！😱 [WARNING]', color: '#ff8c00', delay: 8500 },
-  { id: 6, type: 'file', sender: 'HAERIN', filename: '神秘礼物_gift.exe', delay: 10500 }
-];
 
 const Messenger: React.FC<{ onNext: () => void }> = ({ onNext }) => {
   const [visibleMessages, setVisibleMessages] = useState<number>(0);
@@ -445,19 +620,12 @@ const Messenger: React.FC<{ onNext: () => void }> = ({ onNext }) => {
   );
 }
 
-const popupsData = [
-  { id: 1, title: 'WARNING!', text: '[OVERLOAD] 回忆碎片过载！\n>> 那天的音乐分享 🎧', x: 25, y: 25, w: 280 },
-  { id: 2, title: 'LUCKY BUNNY', text: '[LUCKY] 幸运Bunny抽选成功！\n>> 深夜的长谈 🌙', x: 75, y: 35, w: 320 },
-  { id: 3, title: 'SYSTEM ERROR', text: '[ERR_0x00] 刨冰摄入量超标 🍧\n>> 系统内存正在崩溃...', x: 20, y: 70, w: 260 },
-  { id: 4, title: 'VIRUS.EXE', text: '[HEARTBEAT_MAX] 心跳波动突破阈值！\n>> 第一次看演唱会 🎤', x: 70, y: 75, w: 290 },
-  { id: 5, title: 'MESSAGE', text: '[MSG_UNREAD] 新指令接入：\n>> “雨中奔跑的傻笑” 🌧️', x: 50, y: 50, w: 250 },
-];
-
 const PopupHell: React.FC<{ onNext: () => void }> = ({ onNext }) => {
   const [activePopups, setActivePopups] = useState(popupsData);
   const [readyOpen, setReadyOpen] = useState(false);
   const [isHolding, setIsHolding] = useState(false);
   const [decryptProgress, setDecryptProgress] = useState(0);
+  const [glitchText, setGlitchText] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
 
   const closePopup = (id: number) => {
@@ -498,6 +666,15 @@ const PopupHell: React.FC<{ onNext: () => void }> = ({ onNext }) => {
     }
   }, [decryptProgress, onNext]);
 
+  useEffect(() => {
+    if (isHolding) {
+      const id = setInterval(() => {
+        setGlitchText(Array.from({length: 200}).map(() => String.fromCharCode(33 + Math.random() * 90)).join(''));
+      }, 50);
+      return () => clearInterval(id);
+    }
+  }, [isHolding]);
+
   return (
     <motion.div 
       ref={containerRef}
@@ -510,7 +687,7 @@ const PopupHell: React.FC<{ onNext: () => void }> = ({ onNext }) => {
       )}
     >
       {/* Repetitive background effect */}
-      <div className="absolute inset-0 bg-checkered opacity-30"></div>
+      <div className="absolute inset-0 bg-checkered-dark opacity-30"></div>
 
       {activePopups.map((popup) => (
         <motion.div
@@ -587,7 +764,7 @@ const PopupHell: React.FC<{ onNext: () => void }> = ({ onNext }) => {
                  {/* ASCII Glitch overlay when holding */}
                  {isHolding && (
                     <div className="absolute inset-0 opacity-20 pointer-events-none flex flex-wrap overflow-hidden text-[#ff00ff] font-mono break-all text-xs leading-none">
-                      {Array.from({length: 200}).map(() => String.fromCharCode(33 + Math.random() * 90)).join('')}
+                      {glitchText}
                     </div>
                  )}
                  
@@ -611,73 +788,85 @@ function Surprise() {
   const [opened, setOpened] = useState(false);
 
   useEffect(() => {
-    confetti({
-      particleCount: 100,
-      spread: 100,
-      origin: { y: 0.6 },
-      colors: ['#000000', '#ffffff', '#ff69b4', '#00ffff'],
-      shapes: ['square']
-    });
+    if (!opened) return;
 
-  }, []);
+    const fire = () => {
+      confetti({
+        particleCount: 200,
+        spread: 120,
+        origin: { y: 0.6 },
+        colors: ['#ff69b4', '#000000', '#ffffff', '#00ffff'],
+        shapes: ['star', 'circle']
+      });
+    };
+
+    fire();
+
+    const t = setTimeout(() => {
+        fire();
+    }, 1500);
+
+    return () => {
+      clearTimeout(t);
+      confetti.reset();
+    };
+  }, [opened]);
 
   return (
     <motion.div 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="absolute inset-0 flex items-center justify-center p-4 z-20 bg-checkered"
+      className="absolute inset-0 flex items-center justify-center p-4 z-20 bg-checkered-dark overflow-hidden"
     >
-      {/* 物理相机闪光灯效果：一瞬间的纯白覆盖然后褪去 */}
-      <motion.div 
-        initial={{ opacity: 1, backgroundColor: "#ffffff" }}
-        animate={{ opacity: 0, backgroundColor: "transparent" }}
-        transition={{ duration: 1.5, ease: "easeOut" }}
-        className="absolute inset-0 z-50 pointer-events-none"
-      />
-      <div className="polaroid w-full max-w-sm relative -rotate-3 hover:rotate-2 transition-transform duration-200">
-        
-        <div className="bg-[#e0e0e0] w-full aspect-[4/5] overflow-hidden border-2 border-black relative flex items-center justify-center shadow-inner">
-           <div className="absolute inset-0 bg-lined pointer-events-none z-0"></div>
-           
-           <AnimatePresence mode="wait">
-             {!opened ? (
-               <motion.button 
-                 key="gift"
-                 initial={{ scale: 0.9 }}
-                 animate={{ scale: 1 }}
-                 exit={{ scale: 0 }}
-                 onClick={() => setOpened(true)}
-                 className="brutalist-button px-6 py-4 text-2xl z-10"
-               >
-                 [ 拆开礼物 / OPEN ]
-               </motion.button>
-             ) : (
-               <motion.div 
-                 key="message"
-                 initial={{ scale: 0, rotate: -5 }}
-                 animate={{ scale: 1, rotate: 0 }}
-                 className="relative z-10 w-full h-full flex flex-col items-center p-6 text-center bg-white/90 border-4 border-double border-black m-4 max-w-[90%] max-h-[90%]"
-               >
-                 <div className="text-4xl mb-2 font-pixel">☆(&gt;ᴗ•)</div>
-                 <h2 className="text-2xl md:text-3xl font-display font-bold text-black bg-[#00ffff] px-2 mb-4 border border-black shadow-[2px_2px_0_0_#000]">
-                   生日快乐 [HAPPY B-DAY]
-                 </h2>
-                 <p className="font-sans font-bold text-black text-[15px] md:text-lg leading-relaxed flex-1 flex flex-col justify-center whitespace-pre-wrap">
-                   {`给我最专属的 Bunny，\n\n愿你的每一天都像时空隧道一样充满奇妙与闪耀！\n\n[ LOVE_U_ALL ] <3`}
-                 </p>
-               </motion.div>
-             )}
-           </AnimatePresence>
-        </div>
-        
-        <div className="text-center mt-4">
-          <p className="font-display font-bold text-3xl text-black inline-block bg-[#ff69b4] text-white px-2 border-2 border-black shadow-[2px_2px_0_0_#000]">05/20</p>
-          <p className="font-pixel text-black text-sm mt-2 uppercase tracking-widest font-bold">B U N N I E S _ C L U B</p>
-        </div>
-        
-        <div className="absolute top-2 right-2 text-black y2k-sticker shake-hover text-4xl">★</div>
-        <div className="absolute bottom-20 left-2 text-[#00ffff] y2k-sticker shake-hover text-5xl">♡</div>
-      </div>
+      <FloatingNotes />
+
+      <AnimatePresence>
+        {opened && (
+            <motion.div 
+              initial={{ opacity: 1, backgroundColor: "#ffffff" }}
+              animate={{ opacity: 0, backgroundColor: "transparent" }}
+              transition={{ duration: 1.5, ease: "easeOut" }}
+              className="absolute inset-0 z-50 pointer-events-none"
+            />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence mode="wait">
+        {!opened ? (
+            <motion.div key="envelope" exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.3 } }} className="relative z-20">
+              <Envelope onOpen={() => setOpened(true)} />
+            </motion.div>
+        ) : (
+            <motion.div key="gallery" initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="w-full relative z-20 h-full flex flex-col items-center justify-center">
+               <div className="flex overflow-x-auto snap-x snap-mandatory gap-6 pb-4 px-[10vw] sm:px-[5vw] md:px-0 md:justify-center hide-scrollbar w-full items-center pl-24 md:pl-0">
+                  {memoriesData.map((mem, i) => (
+                      <div key={i} className="polaroid min-w-[80vw] sm:min-w-[320px] max-w-[360px] mx-auto snap-center shrink-0 -rotate-2 hover:rotate-1 transition-transform relative top-0 cursor-ew-resize">
+                          <div className="bg-[#e0e0e0] w-full aspect-[4/5] overflow-hidden border-2 border-black relative flex flex-col items-center justify-center p-6 text-center select-none shadow-[inset_0_0_20px_rgba(0,0,0,0.1)]">
+                              <div className="absolute inset-0 bg-lined pointer-events-none z-0 opacity-40"></div>
+                              <div className="text-6xl mb-6 relative z-10 filter drop-shadow-md">{mem.emoji}</div>
+                              <div className="font-sans font-bold text-lg text-black whitespace-pre-wrap relative z-10 leading-relaxed px-2 flex-1 flex flex-col justify-center">
+                                  {i === memoriesData.length - 1 ? (
+                                      <TypewriterText text={mem.text} delay={800} />
+                                  ) : (
+                                      mem.text
+                                  )}
+                              </div>
+                              {i < memoriesData.length - 1 && <div className="absolute bottom-4 right-4 text-xs font-pixel text-black/50 animate-bounce">SWIPE ➔</div>}
+                          </div>
+                          
+                          <div className="text-center mt-4 border-t-2 border-black/10 pt-2">
+                             <p className="font-display font-bold text-xl sm:text-2xl text-black inline-block bg-[#00ffff] px-2 border-2 border-black shadow-[2px_2px_0_0_#000]">05/20</p>
+                          </div>
+                      </div>
+                  ))}
+               </div>
+               
+               <div className="fixed bottom-6 left-0 w-full text-center pointer-events-none">
+                 <p className="font-pixel text-white/50 text-sm italic">Scroll horizontally / 滑动翻阅</p>
+               </div>
+            </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
@@ -685,19 +874,49 @@ function Surprise() {
 export default function App() {
   const [step, setStep] = useState<'LOGIN' | 'BIOS' | 'EXPLORER' | 'MESSENGER' | 'POPUP_HELL' | 'SURPRISE'>('LOGIN');
 
+  useEffect(() => {
+    const titles = ['🐰 Happy Birthday!', '★ 05/20 ★', '💕 For You ~'];
+    let i = 0;
+    document.title = titles[0];
+    const interval = setInterval(() => {
+      i = (i + 1) % titles.length;
+      document.title = titles[i];
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const onNextLogin = useCallback(() => setStep('BIOS'), []);
+  const onNextBios = useCallback(() => setStep('EXPLORER'), []);
+  const onNextExplorer = useCallback(() => setStep('MESSENGER'), []);
+  const onNextMessenger = useCallback(() => setStep('POPUP_HELL'), []);
+  const onNextPopupHell = useCallback(() => setStep('SURPRISE'), []);
+
   return (
-    <div className="min-h-screen relative overflow-hidden text-black selection:bg-black selection:text-white">
-      <div className="dv-grain"></div>
-      <div className="scanlines"></div>
+    <div className="min-h-screen bg-[#1a1a1a] p-2 sm:p-8 flex items-center justify-center relative select-none">
+      <GlobalInteractions />
       
-      <AnimatePresence mode="wait">
-        {step === 'LOGIN' && <Login key="login" onNext={() => setStep('BIOS')} />}
-        {step === 'BIOS' && <BiosBoot key="bios" onNext={() => setStep('EXPLORER')} />}
-        {step === 'EXPLORER' && <DesktopExplorer key="explorer" onNext={() => setStep('MESSENGER')} />}
-        {step === 'MESSENGER' && <Messenger key="messenger" onNext={() => setStep('POPUP_HELL')} />}
-        {step === 'POPUP_HELL' && <PopupHell key="popup_hell" onNext={() => setStep('SURPRISE')} />}
-        {step === 'SURPRISE' && <Surprise key="surprise" />}
-      </AnimatePresence>
+      <div className="relative w-full h-full max-w-[1024px] aspect-auto sm:aspect-[4/3] max-h-[90vh] bg-black border-[12px] sm:border-[32px] border-[#d8d0c0] rounded-[2rem] sm:rounded-[3rem] shadow-[inset_0_0_20px_rgba(0,0,0,1),0_20px_50px_rgba(0,0,0,1)] overflow-hidden">
+        
+        {/* CRT Inner Bezel Pincushion Shadow */}
+        <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_60px_rgba(0,0,0,0.9)] z-[60] mix-blend-multiply rounded-xl sm:rounded-2xl border-4 border-black"></div>
+        
+        {/* Starfield */}
+        <Starfield />
+
+        <div className="relative w-full h-full overflow-hidden text-black selection:bg-black selection:text-white">
+          <div className="dv-grain z-[50]"></div>
+          <div className="scanlines z-[55]"></div>
+          
+          <AnimatePresence mode="wait">
+            {step === 'LOGIN' && <Login key="login" onNext={onNextLogin} />}
+            {step === 'BIOS' && <BiosBoot key="bios" onNext={onNextBios} />}
+            {step === 'EXPLORER' && <DesktopExplorer key="explorer" onNext={onNextExplorer} />}
+            {step === 'MESSENGER' && <Messenger key="messenger" onNext={onNextMessenger} />}
+            {step === 'POPUP_HELL' && <PopupHell key="popup_hell" onNext={onNextPopupHell} />}
+            {step === 'SURPRISE' && <Surprise key="surprise" />}
+          </AnimatePresence>
+        </div>
+      </div>
     </div>
   );
 }
