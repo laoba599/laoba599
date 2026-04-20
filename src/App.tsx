@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from "motion/react";
 import confetti from 'canvas-confetti';
+import { FileText, FolderHeart, Music, PlaySquare, Save, Disc, Camera, Sparkles, Heart } from 'lucide-react';
 import { cn } from './lib/utils';
 import { fileSystem, chatMessages, popupsData, FileSystemItem, memoriesData } from './data';
 import './index.css';
@@ -19,13 +20,13 @@ const Starfield = () => {
     canvas.height = height;
 
     const stars: {x:number, y:number, size:number, speed:number, color:string}[] = [];
-    const colors = ['#ff69b4', '#00ffff', '#ffffff'];
+    const colors = ['#ffb6c1', '#f0f8ff', '#e0ffff'];
     for(let i=0; i<150; i++) {
         stars.push({
             x: Math.random() * width,
             y: Math.random() * height,
-            size: Math.random() * 2 + 0.5,
-            speed: Math.random() * 0.5 + 0.1,
+            size: Math.random() * 1.5 + 0.5,
+            speed: Math.random() * 0.4 + 0.1,
             color: colors[Math.floor(Math.random() * colors.length)]
         });
     }
@@ -45,10 +46,12 @@ const Starfield = () => {
                     star.y = 0;
                 }
             }
+            ctx.beginPath();
             ctx.fillStyle = star.color;
-            ctx.globalAlpha = Math.random() * 0.5 + 0.5;
-            ctx.fillRect(star.x, star.y, star.size, star.size);
-            ctx.globalAlpha = 1.0;
+            ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+            ctx.shadowBlur = 4;
+            ctx.shadowColor = star.color;
+            ctx.fill();
         });
         animationFrameId = requestAnimationFrame(render);
     };
@@ -66,59 +69,111 @@ const Starfield = () => {
         window.removeEventListener('resize', handleResize);
     }
   }, []);
-  return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-0 opacity-50 block" />;
+  return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-0 opacity-60 block" />;
+}
+
+const RetroPointer = () => (
+  <svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-[2px_2px_0_rgba(0,0,0,0.5)] flex-none">
+    <path d="M1,1 L1,14 L5,10 L9,18 L11,17 L7,9 L14,9 Z" fill="#fff" stroke="#000" strokeWidth="1.5" strokeLinejoin="miter"/>
+    <g transform="translate(7, 8)">
+      <rect x="2" y="0" width="2" height="3" fill="#000" />
+      <rect x="12" y="0" width="2" height="3" fill="#000" />
+      <rect x="2" y="3" width="12" height="9" fill="#000" />
+      <rect x="3" y="1" width="1" height="2" fill="#fff" />
+      <rect x="12" y="1" width="1" height="2" fill="#fff" />
+      <rect x="3" y="4" width="10" height="7" fill="#fff" />
+      <rect x="4" y="6" width="2" height="2" fill="#000" />
+      <rect x="10" y="6" width="2" height="2" fill="#000" />
+      <rect x="7" y="8" width="2" height="1" fill="#000" />
+      <rect x="3" y="8" width="1" height="2" fill="#ff69b4" />
+      <rect x="12" y="8" width="1" height="2" fill="#ff69b4" />
+    </g>
+  </svg>
+);
+
+const ParticleBurst: React.FC<{ x: number, y: number }> = ({ x, y }) => {
+    const items = Array.from({length: 8});
+    return (
+        <div className="fixed top-0 left-0 pointer-events-none z-[9999]" style={{ transform: `translate3d(${x}px, ${y}px, 0)` }}>
+            {items.map((_, i) => {
+                const angle = (i * Math.PI * 2) / items.length;
+                const dist = 30 + Math.random() * 30;
+                const tx = Math.cos(angle) * dist;
+                const ty = Math.sin(angle) * dist;
+                const scale = 0.5 + Math.random() * 0.8;
+                const isStar = Math.random() > 0.5;
+                return (
+                    <motion.div
+                        key={i}
+                        initial={{ x: 0, y: 0, scale: 0, opacity: 1, rotate: 0 }}
+                        animate={{ x: tx, y: ty, scale: scale, opacity: 0, rotate: 180 * (Math.random() > 0.5 ? 1 : -1) }}
+                        transition={{ duration: 0.6, ease: "easeOut" }}
+                        className="absolute -left-2 -top-2"
+                    >
+                        {isStar ? (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="#00ffff" stroke="#000" strokeWidth="2">
+                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                            </svg>
+                        ) : (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="#ff69b4" stroke="#000" strokeWidth="2">
+                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                            </svg>
+                        )}
+                    </motion.div>
+                )
+            })}
+        </div>
+    );
 }
 
 const GlobalInteractions = () => {
-  const [pos, setPos] = useState({x: -100, y: -100});
+  const cursorRef = useRef<HTMLDivElement>(null);
   const [isJumping, setIsJumping] = useState(false);
-  const [hearts, setHearts] = useState<{id:number, x:number, y:number}[]>([]);
+  const [bursts, setBursts] = useState<{id: string, x: number, y: number}[]>([]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      setPos({x: e.clientX, y: e.clientY});
+      if (cursorRef.current) {
+        cursorRef.current.style.transform = `translate3d(${e.clientX}px, ${e.clientY}px, 0)`;
+      }
     };
     const handleMouseDown = (e: MouseEvent) => {
       setIsJumping(true);
-      setTimeout(() => setIsJumping(false), 200);
+      setTimeout(() => setIsJumping(false), 150);
 
-      const newHearts = Array.from({length: 3 + Math.floor(Math.random()*3)}).map((_, i) => ({
-         id: Date.now() + i + Math.random(),
-         x: e.clientX,
-         y: e.clientY
-      }));
-      setHearts(prev => [...prev, ...newHearts]);
+      const newId = Date.now().toString() + Math.random();
+      setBursts(prev => [...prev, { id: newId, x: e.clientX, y: e.clientY }]);
       setTimeout(() => {
-         setHearts(prev => prev.filter(h => !newHearts.map(nh => nh.id).includes(h.id)));
-      }, 1500);
+         setBursts(prev => prev.filter(b => b.id !== newId));
+      }, 1000);
     };
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('pointermove', handleMouseMove, { passive: true });
+    window.addEventListener('pointerdown', handleMouseDown, { passive: true });
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('pointermove', handleMouseMove);
+      window.removeEventListener('pointerdown', handleMouseDown);
     }
   }, []);
 
   return (
     <>
       <div 
-        className={cn("fixed pointer-events-none z-[10000] text-3xl filter drop-shadow select-none", isJumping ? "animate-[shake_0.1s_ease-in-out_infinite]" : "transition-transform")}
-        style={{ left: pos.x, top: pos.y, transform: `translate(-20%, -20%) ${isJumping ? 'scale(1.2)' : 'scale(1)'}` }}
+        ref={cursorRef}
+        className="custom-cursor-container fixed top-0 left-0 pointer-events-none z-[10000] will-change-transform origin-top-left"
+        style={{ transform: `translate3d(-100px, -100px, 0)` }}
       >
-        🐰
+         <motion.div
+            animate={{ 
+              scale: isJumping ? 0.8 : 1
+            }}
+            transition={{ type: "spring", stiffness: 500, damping: 15 }}
+            className="origin-top-left"
+         >
+            <RetroPointer />
+         </motion.div>
       </div>
-      {hearts.map(h => (
-        <div 
-          key={h.id}
-          className="fixed pointer-events-none z-[9998] text-sm text-[#ff69b4] animate-float-up drop-shadow-md select-none"
-          style={{ 
-              left: h.x + (Math.random() * 40 - 20), 
-              top: h.y + (Math.random() * 20 - 10) 
-          }}
-        >
-          ❤
-        </div>
+      {bursts.map(b => (
+        <ParticleBurst key={b.id} x={b.x} y={b.y} />
       ))}
     </>
   );
@@ -158,14 +213,14 @@ const FloatingNotes = () => {
 }
 
 const TypewriterText = ({ text, delay = 0, onComplete }: {text: string, delay?: number, onComplete?: () => void}) => {
-    const [displayed, setDisplayed] = useState('');
+    const [length, setLength] = useState(0);
     const [isDone, setIsDone] = useState(false);
     useEffect(() => {
         let i = 0;
         const t = setTimeout(() => {
             const interval = setInterval(() => {
-                setDisplayed(text.substring(0, i+1));
                 i++;
+                setLength(i);
                 if (i >= text.length) {
                     clearInterval(interval);
                     setIsDone(true);
@@ -175,8 +230,18 @@ const TypewriterText = ({ text, delay = 0, onComplete }: {text: string, delay?: 
             return () => clearInterval(interval);
         }, delay);
         return () => clearTimeout(t);
-    }, [text, delay]);
-    return <span>{displayed}{!isDone && <span className="animate-pulse">_</span>}</span>;
+    }, [text, delay, onComplete]);
+
+    const typed = text.substring(0, length);
+    const untyped = text.substring(length);
+
+    return (
+        <span className="w-full inline-block text-center whitespace-pre-wrap leading-relaxed">
+            <span>{typed}</span>
+            {!isDone && <span className="relative pointer-events-none select-none"><span className="absolute left-[1px] animate-pulse">_</span></span>}
+            <span className="opacity-0">{untyped}</span>
+        </span>
+    );
 }
 
 const Envelope = ({ onOpen }: { onOpen: () => void }) => {
@@ -186,7 +251,7 @@ const Envelope = ({ onOpen }: { onOpen: () => void }) => {
         setTimeout(onOpen, 1000);
     }
     return (
-        <div className="w-80 h-48 relative cursor-none hover:scale-105 transition-transform drop-shadow-[8px_8px_0_rgba(0,0,0,0.8)]" onClick={handleClick} style={{ perspective: '1000px' }}>
+        <div className="w-[260px] sm:w-[320px] h-[156px] sm:h-[192px] relative cursor-none hover:scale-105 transition-transform drop-shadow-[8px_8px_0_rgba(0,0,0,0.8)]" onClick={handleClick} style={{ perspective: '1000px' }}>
            <div className="absolute inset-0 bg-[#bf9b6b] border-4 border-black" />
            <div 
                className={cn("absolute top-0 left-0 w-full h-[55%] bg-[#d7ae7a] border-4 border-black origin-top transition-all duration-700 ease-in-out")} 
@@ -274,6 +339,52 @@ const Login: React.FC<{ onNext: () => void }> = ({ onNext }) => {
             </div>
           </form>
         </div>
+      </div>
+    </motion.div>
+  );
+}
+
+const LoginLoading: React.FC<{ onNext: () => void }> = ({ onNext }) => {
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    let current = 0;
+    const interval = setInterval(() => {
+      current += Math.random() * 20 + 5;
+      if (current >= 100) {
+        current = 100;
+        clearInterval(interval);
+        setTimeout(() => {
+          onNext();
+        }, 800);
+      }
+      setProgress(current);
+    }, 300);
+    return () => clearInterval(interval);
+  }, [onNext]);
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0, scale: 1.05 }}
+      className="absolute inset-0 flex items-center justify-center p-4 z-20"
+    >
+      <div className="win98-window w-full max-w-sm flex flex-col items-center p-8 bg-[#c0c0c0] shadow-[8px_8px_0_0_#000]">
+         <div className="w-16 h-16 bg-white border-2 border-white border-t-[#808080] border-l-[#808080] mb-6 flex items-center justify-center text-4xl shadow-inner">
+           ⏳
+         </div>
+         <p className="font-sans text-black mb-6 text-center text-sm font-bold">
+            正在登录...<br/>
+            <span className="font-normal text-xs mt-2 inline-block">[ 加载个人回忆模块... ]</span>
+         </p>
+         
+         <div className="w-full h-6 bg-white border-2 border-white border-t-[#808080] border-l-[#808080] p-[2px]">
+           <div 
+             className="h-full bg-[#000080]" 
+             style={{ width: `${progress}%`, transition: 'width 0.2s ease-out' }}
+           />
+         </div>
       </div>
     </motion.div>
   );
@@ -402,7 +513,7 @@ const AudioPlayerPopup: React.FC<{src: string, name: string, onClose: () => void
   );
 }
 
-const DesktopExplorer: React.FC<{ onNext: () => void }> = ({ onNext }) => {
+const DesktopExplorer: React.FC<{ onNext: () => void, playlist: {name: string, src: string}[], onPlayTrack: (idx: number) => void }> = ({ onNext, playlist, onPlayTrack }) => {
   const [path, setPath] = useState('C:\\');
   const [selected, setSelected] = useState<string | null>(null);
   const [lastTap, setLastTap] = useState<{name: string, time: number} | null>(null);
@@ -419,7 +530,8 @@ const DesktopExplorer: React.FC<{ onNext: () => void }> = ({ onNext }) => {
       } else if (item.type === 'file') {
         setPopupContent({ name: item.name, content: item.content!, type: 'file' });
       } else if (item.type === 'audio') {
-        setPopupContent({ name: item.name, src: item.src!, type: 'audio' });
+        const idx = playlist.findIndex(p => p.src === item.src);
+        if (idx !== -1) onPlayTrack(idx);
       } else if (item.type === 'exe') {
         onNext();
       }
@@ -463,11 +575,16 @@ const DesktopExplorer: React.FC<{ onNext: () => void }> = ({ onNext }) => {
               key={idx}
               onClick={() => handleItemClick(item)}
               className={cn(
-                "flex flex-col items-center p-2 w-20 md:w-24 gap-1 cursor-pointer transition-colors border-2 border-transparent",
+                "flex flex-col items-center p-2 w-20 md:w-24 gap-1 cursor-none transition-colors border-2 border-transparent",
                 selected === item.name && "bg-[#000080] text-white border-dotted border-black/50 outline outline-1 outline-white"
               )}
             >
-              <div className="text-4xl filter drop-shadow-md">{item.emoji}</div>
+              <div className={cn("text-4xl filter drop-shadow-md flex items-center justify-center p-2", selected === item.name ? "text-white mix-blend-difference" : "text-black")}>
+                {item.type === 'folder' && <FolderHeart size={44} />}
+                {item.type === 'file' && <FileText size={44} />}
+                {item.type === 'audio' && <Music size={44} />}
+                {item.type === 'exe' && <PlaySquare size={44} />}
+              </div>
               <span className={cn(
                 "text-xs font-sans text-center leading-tight break-all",
                 selected === item.name ? "text-white line-clamp-none max-h-none" : "text-black line-clamp-2"
@@ -502,18 +619,12 @@ const DesktopExplorer: React.FC<{ onNext: () => void }> = ({ onNext }) => {
                 <span className="font-pixel ml-1 font-bold whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none">{popupContent.name}</span>
                 <button onPointerUp={() => setPopupContent(null)} className="win98-button !p-0 w-6 h-6 flex items-center justify-center font-bold text-black border-2 bg-[#c0c0c0] cursor-pointer" onPointerDown={(e) => e.stopPropagation()}>X</button>
               </div>
-              {popupContent.type === 'audio' ? (
-                <div onPointerDown={(e) => e.stopPropagation()} className="cursor-default">
-                  <AudioPlayerPopup src={popupContent.src!} name={popupContent.name} onClose={() => setPopupContent(null)} />
-                </div>
-              ) : (
-                <div onPointerDown={(e) => e.stopPropagation()} className="p-4 bg-white border-x-2 border-b-2 border-white flex flex-col gap-4 font-sans text-sm text-black cursor-default">
-                   <p className="whitespace-pre-wrap font-bold leading-relaxed max-h-[40vh] overflow-y-auto">{popupContent.content}</p>
-                   <div className="flex justify-center mt-2">
-                     <button className="win98-button font-pixel px-6 py-1" onPointerUp={() => setPopupContent(null)}>确认 / OK</button>
-                   </div>
-                </div>
-              )}
+              <div onPointerDown={(e) => e.stopPropagation()} className="p-4 bg-white border-x-2 border-b-2 border-white flex flex-col gap-4 font-sans text-sm text-black cursor-default">
+                 <p className="whitespace-pre-wrap font-bold leading-relaxed max-h-[40vh] overflow-y-auto">{popupContent.content}</p>
+                 <div className="flex justify-center mt-2">
+                   <button className="win98-button font-pixel px-6 py-1" onPointerUp={() => setPopupContent(null)}>确认 / OK</button>
+                 </div>
+              </div>
             </motion.div>
           </div>
         )}
@@ -546,7 +657,7 @@ const Messenger: React.FC<{ onNext: () => void }> = ({ onNext }) => {
       exit={{ opacity: 0, scale: 1.05 }}
       className="absolute inset-0 flex items-center justify-center p-4 z-10"
     >
-      <div className="win98-window w-full max-w-sm h-[80vh] max-h-[600px] flex flex-col relative bg-[#c0c0c0] shadow-[8px_8px_0_0_#000]">
+      <div className="win98-window w-[95%] max-w-sm h-[90%] max-h-[550px] flex flex-col relative bg-[#c0c0c0] shadow-[8px_8px_0_0_#000]">
         <div className="win98-titlebar !bg-black !text-white flex justify-between items-center px-2 py-1">
           <span className="font-pixel font-bold tracking-widest text-[#00ffff]">BUNNIES_CHAT.exe</span>
           <div className="flex gap-1">
@@ -569,10 +680,10 @@ const Messenger: React.FC<{ onNext: () => void }> = ({ onNext }) => {
                 className="flex items-start gap-2 max-w-[95%]"
               >
                 <div 
-                  className="w-10 h-10 border-2 border-black flex items-center justify-center text-lg shrink-0 shadow-[2px_2px_0_0_#000]"
+                  className="w-10 h-10 border-2 border-black flex items-center justify-center text-xl shrink-0 shadow-[2px_2px_0_0_#000] font-pixel font-bold object-cover"
                   style={{ backgroundColor: m.color || '#ccc' }}
                 >
-                  {m.emoji}
+                  <span className="drop-shadow-[1px_1px_0_rgba(0,0,0,0.5)] text-white">{m.sender.charAt(0)}</span>
                 </div>
                 
                 <div className="flex flex-col">
@@ -582,8 +693,10 @@ const Messenger: React.FC<{ onNext: () => void }> = ({ onNext }) => {
                       onClick={onNext}
                       className="mt-1 bg-[#ff00ff] text-white border-2 border-black p-3 text-left shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] active:shadow-none active:translate-x-[4px] active:translate-y-[4px] transition-all group"
                     >
-                      <div className="font-pixel flex items-center gap-2">
-                         <span className="text-2xl group-hover:animate-bounce">💾</span>
+                      <div className="font-pixel flex items-center gap-3">
+                         <div className="text-white group-hover:animate-bounce">
+                             <Save size={24} strokeWidth={2.5} />
+                         </div>
                          <div>
                            <p className="font-bold underline">点击下载 [DOWNLOAD]</p>
                            <p className="text-xs">{m.filename}</p>
@@ -700,9 +813,9 @@ const PopupHell: React.FC<{ onNext: () => void }> = ({ onNext }) => {
            whileDrag={{ scale: 1.02 }}
            className="absolute win98-window z-20 shadow-[6px_6px_0_0_#000] cursor-move touch-none"
            style={{ 
-             left: `clamp(10px, ${popup.x}vw, calc(100vw - min(90vw, ${popup.w}px) - 10px))`,
-             top: `clamp(10px, ${popup.y}vh, calc(100vh - 200px))`,
-             width: `min(90vw, ${popup.w}px)`
+             left: `clamp(10px, ${popup.x}%, max(10px, calc(100% - min(85vw, ${popup.w}px) - 10px)))`,
+             top: `clamp(10px, ${popup.y}%, calc(100% - 150px))`,
+             width: `min(85vw, ${popup.w}px)`
            }}
         >
           <div className="win98-titlebar !bg-[#000080] !text-white flex justify-between items-center px-1 py-1">
@@ -736,7 +849,7 @@ const PopupHell: React.FC<{ onNext: () => void }> = ({ onNext }) => {
           >
             <h1 className="text-white font-pixel text-2xl mb-8 animate-pulse text-center">系统威胁已清除 [ALL_THREATS_CLEARED]</h1>
             
-            <div className="w-full max-w-sm flex flex-col items-center">
+             <div className="w-[90%] max-w-sm flex flex-col items-center">
               <button 
                  onMouseDown={() => setIsHolding(true)}
                  onMouseUp={() => setIsHolding(false)}
@@ -751,7 +864,7 @@ const PopupHell: React.FC<{ onNext: () => void }> = ({ onNext }) => {
                    transform: isHolding ? `scale(${1 + decryptProgress * 0.0005}) rotate(${Math.random() > 0.5 && isHolding ? 1 : -1}deg)` : 'scale(1)'
                  }}
                  className={cn(
-                   "brutalist-button relative w-full text-xl font-bold px-6 py-8 border-4 border-black font-pixel transition-shadow overflow-hidden",
+                   "brutalist-button relative w-full text-[15px] sm:text-xl font-bold px-2 sm:px-6 py-6 sm:py-8 border-4 border-black font-pixel transition-shadow overflow-hidden",
                    isHolding ? "bg-[#222] shadow-[4px_4px_0_0_#ff00ff]" : "bg-white shadow-[8px_8px_0_0_#ff00ff]"
                  )}
               >
@@ -782,6 +895,95 @@ const PopupHell: React.FC<{ onNext: () => void }> = ({ onNext }) => {
       </AnimatePresence>
     </motion.div>
   );
+}
+
+const MemoryStack = () => {
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const [exitX, setExitX] = useState(0);
+
+    const getIcon = (i: number) => {
+       switch(i) {
+         case 0: return <Disc size={48} strokeWidth={2} color="#000" />;
+         case 1: return <Camera size={48} strokeWidth={2} color="#000" />;
+         case 2: return <Sparkles size={48} strokeWidth={2} color="#000" />;
+         default: return <Heart size={48} strokeWidth={2} color="#ff69b4" fill="#ff69b4" />;
+       }
+    }
+
+    return (
+      <div className="w-[95%] sm:w-[95%] max-w-[380px] h-[90%] max-h-[550px] bg-[#c0c0c0] border-t-2 border-l-2 border-white border-b-2 border-r-2 border-[#555] shadow-[8px_8px_0_0_#000] flex flex-col pointer-events-auto filter drop-shadow-xl relative z-30">
+        <div className="bg-[#000080] p-1.5 flex justify-between items-center select-none flex-shrink-0">
+          <span className="font-pixel text-white text-xs ml-1 tracking-widest drop-shadow-[1px_1px_0_#000]">♥ SURPRISE.EXE</span>
+          <div className="w-5 h-5 bg-[#c0c0c0] border-t border-l border-white border-b border-r border-[#555] flex items-center justify-center font-bold text-xs text-black">X</div>
+        </div>
+
+        <div className="relative flex-1 w-full min-h-[300px] bg-checkered p-2 sm:p-4 flex items-center justify-center overflow-hidden">
+          <AnimatePresence>
+              {memoriesData.map((mem, i) => {
+                  if (i < currentIndex) return null;
+                  const isTop = i === currentIndex;
+                  const offset = i - currentIndex;
+                  if (offset > 2) return null;
+
+                  return (
+                      <motion.div
+                          key={i}
+                          drag={isTop && i < memoriesData.length - 1 ? "x" : false}
+                          dragConstraints={{ left: 0, right: 0 }}
+                          dragElastic={0.8}
+                          onDragEnd={(e, { offset, velocity }) => {
+                              if (Math.abs(offset.x) > 100 || Math.abs(velocity.x) > 300) {
+                                  setExitX(offset.x > 0 ? 500 : -500);
+                                  setCurrentIndex(c => c + 1);
+                              }
+                          }}
+                          initial={{ scale: 0.8, opacity: 0, y: 50 }}
+                          animate={{ 
+                              scale: 1 - offset * 0.05, 
+                              y: offset * 20,
+                              zIndex: 10 - offset,
+                              opacity: 1 - (offset * 0.15),
+                              rotate: i % 2 === 0 ? offset * 2 : -offset * 2
+                          }}
+                          exit={{ x: exitX, opacity: 0, scale: 0.8, rotate: exitX > 0 ? 20 : -20, transition: { duration: 0.3 } }}
+                          className="absolute w-[80%] max-w-[280px] h-auto min-h-[380px] bg-[#fdfdfd] border-2 border-black flex flex-col items-center justify-start p-3 sm:p-4 shadow-xl"
+                          style={{ touchAction: 'none' }}
+                          whileDrag={isTop ? { scale: 1.05, rotate: exitX > 0 ? 5 : -5 } : {}}
+                      >
+                          <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-3 bg-black/10 rounded-full blur-[1px]"></div>
+                          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-8 h-4 bg-white/80 border border-black/20 shadow-sm transform rotate-2"></div>
+                          
+                          <div className="w-full bg-white border border-black/10 shadow-inner flex flex-col items-center justify-start p-3 mt-4 flex-1 text-center pb-6">
+                             <div className="mb-3 mt-2 relative z-10 drop-shadow-sm bg-[#f0f0f0] border-2 border-black p-2 sm:p-3 rounded-full shrink-0">
+                                {getIcon(i)}
+                             </div>
+                             <div className="font-sans font-bold text-sm sm:text-base md:text-lg text-black whitespace-pre-wrap relative z-10 leading-relaxed px-1 sm:px-2 flex-1 flex flex-col justify-center w-full">
+                                 {isTop && i === memoriesData.length - 1 ? (
+                                     <TypewriterText text={mem.text} delay={300} />
+                                 ) : (
+                                     mem.text
+                                 )}
+                             </div>
+                          </div>
+
+                          {isTop && i < memoriesData.length - 1 && (
+                              <motion.div animate={{x:[-3, 3, -3]}} transition={{repeat:Infinity, duration:1.5}} className="absolute bottom-4 right-4 text-[10px] font-pixel text-black/40">
+                                 &lt; SWIPE &gt;
+                              </motion.div>
+                          )}
+                      </motion.div>
+                  )
+              })}
+          </AnimatePresence>
+          
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-0">
+             {memoriesData.map((_, i) => (
+                <div key={i} className={`h-2 transition-all duration-300 border border-black ${i === currentIndex ? 'w-6 bg-[#ff69b4]' : (i < currentIndex ? 'w-2 bg-black/20' : 'w-2 bg-white')}`} />
+             ))}
+          </div>
+        </div>
+      </div>
+    );
 }
 
 function Surprise() {
@@ -838,32 +1040,7 @@ function Surprise() {
             </motion.div>
         ) : (
             <motion.div key="gallery" initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="w-full relative z-20 h-full flex flex-col items-center justify-center">
-               <div className="flex overflow-x-auto snap-x snap-mandatory gap-6 pb-4 px-[10vw] sm:px-[5vw] md:px-0 md:justify-center hide-scrollbar w-full items-center pl-24 md:pl-0">
-                  {memoriesData.map((mem, i) => (
-                      <div key={i} className="polaroid min-w-[80vw] sm:min-w-[320px] max-w-[360px] mx-auto snap-center shrink-0 -rotate-2 hover:rotate-1 transition-transform relative top-0 cursor-ew-resize">
-                          <div className="bg-[#e0e0e0] w-full aspect-[4/5] overflow-hidden border-2 border-black relative flex flex-col items-center justify-center p-6 text-center select-none shadow-[inset_0_0_20px_rgba(0,0,0,0.1)]">
-                              <div className="absolute inset-0 bg-lined pointer-events-none z-0 opacity-40"></div>
-                              <div className="text-6xl mb-6 relative z-10 filter drop-shadow-md">{mem.emoji}</div>
-                              <div className="font-sans font-bold text-lg text-black whitespace-pre-wrap relative z-10 leading-relaxed px-2 flex-1 flex flex-col justify-center">
-                                  {i === memoriesData.length - 1 ? (
-                                      <TypewriterText text={mem.text} delay={800} />
-                                  ) : (
-                                      mem.text
-                                  )}
-                              </div>
-                              {i < memoriesData.length - 1 && <div className="absolute bottom-4 right-4 text-xs font-pixel text-black/50 animate-bounce">SWIPE ➔</div>}
-                          </div>
-                          
-                          <div className="text-center mt-4 border-t-2 border-black/10 pt-2">
-                             <p className="font-display font-bold text-xl sm:text-2xl text-black inline-block bg-[#00ffff] px-2 border-2 border-black shadow-[2px_2px_0_0_#000]">05/20</p>
-                          </div>
-                      </div>
-                  ))}
-               </div>
-               
-               <div className="fixed bottom-6 left-0 w-full text-center pointer-events-none">
-                 <p className="font-pixel text-white/50 text-sm italic">Scroll horizontally / 滑动翻阅</p>
-               </div>
+               <MemoryStack />
             </motion.div>
         )}
       </AnimatePresence>
@@ -872,8 +1049,77 @@ function Surprise() {
 }
 
 export default function App() {
-  const [step, setStep] = useState<'LOGIN' | 'BIOS' | 'EXPLORER' | 'MESSENGER' | 'POPUP_HELL' | 'SURPRISE'>('LOGIN');
+  const [step, setStep] = useState<'BIOS' | 'LOGIN' | 'LOGIN_LOADING' | 'EXPLORER' | 'MESSENGER' | 'POPUP_HELL' | 'SURPRISE'>('BIOS');
+  const [isRestarting, setIsRestarting] = useState(false);
 
+  // Global Music State
+  const [playlist, setPlaylist] = useState<{name: string, src: string}[]>([]);
+  const [currentTrackIndex, setCurrentTrackIndex] = useState(-1);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  const isSystemReady = !['BIOS', 'LOGIN', 'LOGIN_LOADING'].includes(step);
+
+  // Load playlist on mount
+  useEffect(() => {
+    fetch('/api/music')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.length > 0) {
+           setPlaylist(data);
+           fileSystem['C:\\Documents\\Secret\\Album'] = [
+             { name: '.. (返回上级)', type: 'folder', target: 'C:\\Documents\\Secret', emoji: '📁' },
+             ...data.map((song: any) => ({ name: song.name, type: 'audio', src: song.src, emoji: '🎵' }))
+           ];
+        } else {
+           fileSystem['C:\\Documents\\Secret\\Album'] = [
+             { name: '.. (返回上级)', type: 'folder', target: 'C:\\Documents\\Secret', emoji: '📁' },
+             { name: '未找到音乐.txt', type: 'file', content: '请在 /public/music 文件夹中放入无损音乐！', emoji: '📝' }
+           ];
+        }
+      })
+      .catch((e) => {
+           console.error("Music load error", e);
+      });
+  }, []);
+
+  const playTrack = useCallback((index: number) => {
+    setCurrentTrackIndex(index);
+    setIsPlaying(true);
+  }, []);
+
+  const togglePlay = useCallback(() => {
+    if (currentTrackIndex === -1 && playlist.length > 0) {
+       setCurrentTrackIndex(0);
+       setIsPlaying(true);
+       return;
+    }
+    setIsPlaying(!isPlaying);
+  }, [isPlaying, currentTrackIndex, playlist]);
+
+  const nextTrack = useCallback(() => {
+    if (playlist.length === 0) return;
+    setCurrentTrackIndex((prev) => (prev + 1) % playlist.length);
+    setIsPlaying(true);
+  }, [playlist]);
+
+  const prevTrack = useCallback(() => {
+    if (playlist.length === 0) return;
+    setCurrentTrackIndex((prev) => (prev - 1 + playlist.length) % playlist.length);
+    setIsPlaying(true);
+  }, [playlist]);
+
+  useEffect(() => {
+    if (audioRef.current) {
+       if (isPlaying) {
+          audioRef.current.play().catch(e => console.error("Playback error", e));
+       } else {
+          audioRef.current.pause();
+       }
+    }
+  }, [isPlaying, currentTrackIndex]);
+
+  // Background titles
   useEffect(() => {
     const titles = ['🐰 Happy Birthday!', '★ 05/20 ★', '💕 For You ~'];
     let i = 0;
@@ -885,38 +1131,140 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  const onNextLogin = useCallback(() => setStep('BIOS'), []);
-  const onNextBios = useCallback(() => setStep('EXPLORER'), []);
+  const onNextBios = useCallback(() => setStep('LOGIN'), []);
+  const onNextLogin = useCallback(() => setStep('LOGIN_LOADING'), []);
+  const onNextLoginLoading = useCallback(() => setStep('EXPLORER'), []);
   const onNextExplorer = useCallback(() => setStep('MESSENGER'), []);
   const onNextMessenger = useCallback(() => setStep('POPUP_HELL'), []);
   const onNextPopupHell = useCallback(() => setStep('SURPRISE'), []);
 
+  const handlePowerClick = useCallback(() => {
+    if (step !== 'SURPRISE' || isRestarting) return;
+    setIsRestarting(true);
+    setIsPlaying(false);
+    setTimeout(() => {
+      setStep('BIOS');
+    }, 650);
+    setTimeout(() => {
+      setIsRestarting(false);
+    }, 1200);
+  }, [step, isRestarting]);
+
   return (
-    <div className="min-h-screen bg-[#1a1a1a] p-2 sm:p-8 flex items-center justify-center relative select-none">
+    <div className="min-h-screen bg-[#1a1a1a] p-2 sm:p-8 flex items-center justify-center relative select-none overflow-hidden font-sans">
       <GlobalInteractions />
       
-      <div className="relative w-full h-full max-w-[1024px] aspect-auto sm:aspect-[4/3] max-h-[90vh] bg-black border-[12px] sm:border-[32px] border-[#d8d0c0] rounded-[2rem] sm:rounded-[3rem] shadow-[inset_0_0_20px_rgba(0,0,0,1),0_20px_50px_rgba(0,0,0,1)] overflow-hidden">
+      <div className="relative w-full max-w-[1024px] h-[95vh] sm:h-auto aspect-auto sm:aspect-[4/3] sm:max-h-[90vh] mx-auto flex flex-col p-2 sm:p-6 md:p-8 rounded-[1.25rem] sm:rounded-[3rem] md:rounded-[3.5rem] shadow-[inset_2px_2px_10px_rgba(255,255,255,0.9),inset_-6px_-6px_20px_rgba(0,0,0,0.3),0_30px_60px_rgba(0,0,0,0.9),0_0_100px_rgba(255,255,255,0.05)] monitor-casing">
         
-        {/* CRT Inner Bezel Pincushion Shadow */}
-        <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_60px_rgba(0,0,0,0.9)] z-[60] mix-blend-multiply rounded-xl sm:rounded-2xl border-4 border-black"></div>
-        
-        {/* Starfield */}
-        <Starfield />
+        {/* Top details of monitor casing */}
+        <div className="absolute top-2 left-6 right-6 h-1 flex justify-between px-10 opacity-30 pointer-events-none">
+            <div className="w-16 h-full bg-black rounded-full shadow-[1px_1px_0_rgba(255,255,255,0.5)]"></div>
+            <div className="w-16 h-full bg-black rounded-full shadow-[1px_1px_0_rgba(255,255,255,0.5)]"></div>
+        </div>
 
-        <div className="relative w-full h-full overflow-hidden text-black selection:bg-black selection:text-white">
-          <div className="dv-grain z-[50]"></div>
-          <div className="scanlines z-[55]"></div>
+        {/* Inner Screen Bezel */}
+        <div className="relative flex-1 w-full rounded-xl sm:rounded-3xl overflow-hidden shadow-[inset_0_4px_15px_rgba(0,0,0,0.8),0_2px_5px_rgba(255,255,255,0.6)] bg-black">
           
-          <AnimatePresence mode="wait">
-            {step === 'LOGIN' && <Login key="login" onNext={onNextLogin} />}
-            {step === 'BIOS' && <BiosBoot key="bios" onNext={onNextBios} />}
-            {step === 'EXPLORER' && <DesktopExplorer key="explorer" onNext={onNextExplorer} />}
-            {step === 'MESSENGER' && <Messenger key="messenger" onNext={onNextMessenger} />}
-            {step === 'POPUP_HELL' && <PopupHell key="popup_hell" onNext={onNextPopupHell} />}
-            {step === 'SURPRISE' && <Surprise key="surprise" />}
-          </AnimatePresence>
+          {/* CRT Inner Screen Pincushion Shadow */}
+          <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_80px_rgba(0,0,0,0.95)] z-[60] mix-blend-multiply"></div>
+          
+          {/* Screen Glass Glare */}
+          <div className="absolute inset-0 pointer-events-none mix-blend-screen opacity-10 z-[65] overflow-hidden">
+             <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] rotate-45 bg-gradient-to-b from-transparent via-white to-transparent opacity-40 blur-3xl transform translate-y-1/4"></div>
+          </div>
+          
+          {/* CRT Convex reflection curve */}
+          <div className="absolute inset-x-0 -top-[50%] h-[150%] bg-white/5 opacity-50 rounded-[100%] pointer-events-none z-[64] blur-sm mix-blend-overlay"></div>
+
+          {/* Starfield */}
+          <Starfield />
+
+          <div className="relative w-full h-full overflow-hidden text-black selection:bg-black selection:text-white">
+            <div className={`w-full h-full ${isRestarting ? 'animate-crt-off pointer-events-none' : ''}`}>
+                <div className={`absolute inset-0 z-[70] pointer-events-none transition-colors duration-100 ${isRestarting ? 'bg-black' : 'bg-transparent'}`} />
+                <div className={`w-full h-full transition-opacity duration-150 ${isRestarting ? 'opacity-0' : 'opacity-100'}`}>
+                    <div className="dv-grain z-[50]"></div>
+                    <div className="scanlines z-[55]"></div>
+                    
+                    <AnimatePresence mode="wait">
+                      {step === 'BIOS' && <BiosBoot key="bios" onNext={onNextBios} />}
+                      {step === 'LOGIN' && <Login key="login" onNext={onNextLogin} />}
+                      {step === 'LOGIN_LOADING' && <LoginLoading key="login_loading" onNext={onNextLoginLoading} />}
+                      {step === 'EXPLORER' && <DesktopExplorer key="explorer" onNext={onNextExplorer} playlist={playlist} onPlayTrack={playTrack} />}
+                      {step === 'MESSENGER' && <Messenger key="messenger" onNext={onNextMessenger} />}
+                      {step === 'POPUP_HELL' && <PopupHell key="popup_hell" onNext={onNextPopupHell} />}
+                      {step === 'SURPRISE' && <Surprise key="surprise" />}
+                    </AnimatePresence>
+                </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Monitor Deck (Buttons, Vents, Logo) */}
+        <div className="h-10 sm:h-20 mt-2 sm:mt-6 flex flex-shrink-0 items-center justify-between px-2 sm:px-12 pointer-events-auto">
+           {/* Music Player Control */}
+           <div className="flex gap-2 sm:gap-4 items-center">
+              <div className="flex bg-[#111] border-2 border-t-black border-l-black border-b-gray-500 border-r-gray-500 p-1 sm:p-2 shadow-inner h-8 sm:h-12 w-28 sm:w-48 overflow-hidden items-center relative">
+                 <span className={cn("font-pixel text-[10px] sm:text-xs whitespace-nowrap overflow-hidden text-ellipsis w-full", isSystemReady ? "text-[#39ff14]" : "text-[#1a5510]")}>
+                   <div className={cn(isSystemReady ? "animate-pulse" : "")}>{
+                    !isSystemReady ? "SYSTEM OFFLINE" : 
+                    playlist.length === 0 ? "NO DISC" : 
+                    (currentTrackIndex === -1 ? "READY..." : 
+                      `${isPlaying ? '▶' : '⏸'} ${playlist[currentTrackIndex]?.name || 'Unknown'}`
+                    )
+                   }</div>
+                 </span>
+              </div>
+              <div className="flex gap-2 sm:gap-3">
+                 <button disabled={!isSystemReady} onClick={prevTrack} className={cn("w-8 h-6 sm:w-12 sm:h-8 rounded-md bg-gradient-to-br from-[#e0dfd9] to-[#bfbeba] border border-[#a0a09e] shadow-[inset_-2px_-2px_5px_rgba(0,0,0,0.3),inset_3px_3px_6px_rgba(255,255,255,0.9),2px_2px_4px_rgba(0,0,0,0.4)] flex items-center justify-center transition-all text-[#555] font-black text-[10px] sm:text-[11px] tracking-tighter", isSystemReady ? "cursor-pointer hover:brightness-95 active:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.4),0_0_0_rgba(0,0,0,0)] active:text-[#222]" : "opacity-60 cursor-default")}>|&lt;</button>
+                 <button disabled={!isSystemReady} onClick={togglePlay} className={cn("w-8 h-6 sm:w-12 sm:h-8 rounded-md bg-gradient-to-br from-[#e0dfd9] to-[#bfbeba] border border-[#a0a09e] shadow-[inset_-2px_-2px_5px_rgba(0,0,0,0.3),inset_3px_3px_6px_rgba(255,255,255,0.9),2px_2px_4px_rgba(0,0,0,0.4)] flex items-center justify-center transition-all text-[#555] font-black text-[10px] sm:text-[11px] tracking-tighter", isSystemReady ? "cursor-pointer hover:brightness-95 active:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.4),0_0_0_rgba(0,0,0,0)] active:text-[#222]" : "opacity-60 cursor-default")}>{isPlaying ? '||' : '▶'}</button>
+                 <button disabled={!isSystemReady} onClick={nextTrack} className={cn("w-8 h-6 sm:w-12 sm:h-8 rounded-md bg-gradient-to-br from-[#e0dfd9] to-[#bfbeba] border border-[#a0a09e] shadow-[inset_-2px_-2px_5px_rgba(0,0,0,0.3),inset_3px_3px_6px_rgba(255,255,255,0.9),2px_2px_4px_rgba(0,0,0,0.4)] flex items-center justify-center transition-all text-[#555] font-black text-[10px] sm:text-[11px] tracking-tighter", isSystemReady ? "cursor-pointer hover:brightness-95 active:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.4),0_0_0_rgba(0,0,0,0)] active:text-[#222]" : "opacity-60 cursor-default")}>&gt;|</button>
+              </div>
+           </div>
+           
+           <div className="flex items-center gap-4 sm:gap-8 pointer-events-none">
+               {/* Logo Badge */}
+               <div className="flex gap-3 items-center">
+                 <div className="w-8 h-8 hidden sm:flex bg-gradient-to-br from-gray-100 to-gray-400 rounded-sm items-center justify-center shadow-[1px_1px_3px_rgba(0,0,0,0.4),inset_1px_1px_1px_rgba(255,255,255,0.9)] border border-gray-400">
+                   <span className="font-pixel text-[10px] sm:text-xs text-[#d22] font-bold drop-shadow-[0.5px_0.5px_0_rgba(255,255,255,0.8)]">NJ</span>
+                 </div>
+                 <div className="font-pixel text-[#555] text-xs sm:text-lg font-bold tracking-widest drop-shadow-[1px_1px_0_rgba(255,255,255,0.8)] opacity-80 hidden md:block">BUNNY // 1998</div>
+               </div>
+           
+               {/* Vents */}
+               <div className="flex gap-2 flex-1 justify-center max-w-[120px] pb-1">
+                  {[1,2,3,4].map(i => (
+                      <div key={i} className="w-3 sm:w-4 h-1.5 sm:h-2.5 rounded-full bg-[#111] shadow-[inset_1px_2px_4px_rgba(0,0,0,0.9),1px_1px_0_rgba(255,255,255,0.8)]" />
+                  ))}
+               </div>
+    
+               {/* Power Controls */}
+               <div className="flex items-center gap-3 sm:gap-6 pointer-events-auto">
+                  <div className="flex flex-col gap-1 items-center hidden sm:flex">
+                     <div className="w-3 h-1 bg-[#222] shadow-[1px_1px_0_rgba(255,255,255,0.6)]"></div>
+                     <div className="w-3 h-1 bg-[#222] shadow-[1px_1px_0_rgba(255,255,255,0.6)]"></div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                     <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-[#39ff14] shadow-[0_0_12px_#39ff14,inset_1px_1px_3px_rgba(255,255,255,0.8)] border border-[#111]" />
+                     <div onClick={handlePowerClick} className="w-8 h-8 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-[#e0dfd9] to-[#bfbeba] border border-[#a0a09e] shadow-[inset_-2px_-2px_5px_rgba(0,0,0,0.3),inset_3px_3px_6px_rgba(255,255,255,0.9),3px_3px_6px_rgba(0,0,0,0.4)] flex items-center justify-center cursor-pointer hover:brightness-95 active:shadow-[inset_3px_3px_6px_rgba(0,0,0,0.4),0_0_0_rgba(0,0,0,0)] transition-all">
+                        <div className="w-4 h-4 sm:w-5 sm:h-5 border-[2.5px] border-[#777] rounded-full border-t-transparent relative opacity-80">
+                            <div className="absolute top-[-6px] left-1/2 -translate-x-1/2 w-[2.5px] h-2.5 bg-[#777] rounded-sm"></div>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+           </div>
         </div>
       </div>
+      
+      {/* Global Audio Element */}
+      {playlist.length > 0 && currentTrackIndex !== -1 && (
+        <audio 
+          ref={audioRef} 
+          src={playlist[currentTrackIndex]?.src} 
+          onEnded={nextTrack}
+        />
+      )}
     </div>
   );
 }
